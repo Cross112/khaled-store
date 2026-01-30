@@ -1,0 +1,9 @@
+{
+  "name": "khaled-store",
+  "version": "1.0.0",
+  "description": "Store Backend",
+  "main": "index.js",
+  "dependencies": {
+    "postgres": "^3.4.3"
+  }
+}
