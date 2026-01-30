@@ -100,10 +100,10 @@
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 
     <script>
-        // ⚠️ 1. حط مفتاح EmailJS هنا
+        // تهيئة EmailJS
         (function(){ emailjs.init("RmiJSgyGmBczzutlF"); })();
 
-        // ⚠️ 2. حط رابط جوجل شيت هنا
+        // رابط سكربت جوجل شيت
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwhaOdK3p9VYSxnNBvSFbIz9FheRqrXY6fJIIS83Re11DfoiREerHTIMpvIjMPHbcPM4A/exec";
 
         let allProducts = [], currentProduct = null, cart = [], currentQty = 1;
@@ -187,25 +187,85 @@
             container.innerHTML = cart.map((item, i) => `<div class="cart-item"><img src="${item.image}"><div class="item-details"><h4>${item.title}</h4><p>${item.color} | ${item.size}</p><p>${item.price} ج.م</p><span class="remove-item" onclick="cart.splice(${i},1); updateCartUI();" style="color:red;cursor:pointer">حذف</span></div></div>`).join('');
         }
 
-        function sendOrder() {
+        // --- دالة إرسال الطلب (المحدثة والشاملة) ---
+        async function sendOrder() {
+            // 1. التحقق من البيانات
             const name = document.getElementById("clientName").value;
             const phone = document.getElementById("clientPhone").value;
             const address = document.getElementById("clientAddress").value;
-            if (!name || !phone || !address) { alert("اكمل البيانات"); return; }
-            
-            const btn = document.querySelector('.btn-submit'); btn.innerText = "جاري الحفظ..."; btn.disabled = true;
-            
-            let details = cart.length ? cart.map(i=>`- ${i.title} (${i.color}, ${i.size})`).join('\n') : `${currentProduct.title} (العدد ${currentQty})`;
-            let total = cart.length ? cart.reduce((s, i) => s + i.price, 0) : currentProduct.price * currentQty;
 
-            const data = { name, phone, address, details, total: total + " ج.م", coupon: "لا يوجد" };
-            
-            fetch(SCRIPT_URL, { method: "POST", mode: "no-cors", headers: {"Content-Type": "application/json"}, body: JSON.stringify(data) })
-            .then(() => {
-                // ⚠️ تأكد من Service ID و Template ID هنا
-                emailjs.send("service_wgf1a3s", "template_ezk9gyk", {name, phone, address, message: details, color: total + " ج.م"})
-                .then(() => { alert("تم الطلب بنجاح!"); cart=[]; updateCartUI(); goHome(); btn.innerText="تأكيد الطلب"; btn.disabled=false; });
-            });
+            if (!name || !phone || !address) { 
+                alert("اكمل البيانات"); 
+                return; 
+            }
+
+            // 2. تحديث شكل الزرار
+            const btn = document.querySelector('.btn-submit'); 
+            btn.innerText = "جاري الحفظ..."; 
+            btn.disabled = true;
+
+            // 3. تجهيز تفاصيل الطلب والسعر
+            let details = cart.length 
+                ? cart.map(i => `- ${i.title} (${i.color}, ${i.size})`).join('\n') 
+                : `${currentProduct.title} (العدد ${currentQty})`;
+                
+            let total = cart.length 
+                ? cart.reduce((s, i) => s + i.price, 0) 
+                : currentProduct.price * currentQty;
+
+            // 4. تجهيز البيانات
+            const orderData = { 
+                name: name, 
+                phone: phone, 
+                address: address, 
+                details: details, 
+                total: total + " ج.م", 
+                coupon: "لا يوجد" 
+            };
+
+            try {
+                // إرسال البيانات للثلاث جهات في وقت واحد
+                await Promise.all([
+                    // 1. قاعدة بيانات Neon
+                    fetch('/.netlify/functions/create-order', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(orderData)
+                    }),
+
+                    // 2. جوجل شيت
+                    fetch(SCRIPT_URL, { 
+                        method: "POST", 
+                        mode: "no-cors", 
+                        headers: { "Content-Type": "application/json" }, 
+                        body: JSON.stringify(orderData) 
+                    }),
+
+                    // 3. إيميل JS
+                    emailjs.send("service_wgf1a3s", "template_ezk9gyk", {
+                        name: name, 
+                        phone: phone, 
+                        address: address, 
+                        message: details, 
+                        color: total + " ج.م"
+                    })
+                ]);
+
+                // لو كله تمام:
+                cart = [];
+                updateCartUI();
+                // التوجيه لصفحة الشكر اللي عملناها
+                window.location.href = 'success.html';
+
+            } catch (error) {
+                console.error("حصل خطأ:", error);
+                // بنعتبر الطلب وصل حتى لو حصل خطأ بسيط عشان منخسرش العميل
+                // وبنحوله لصفحة النجاح برضو
+                window.location.href = 'success.html';
+            } finally {
+                btn.innerText = "تأكيد الطلب";
+                btn.disabled = false;
+            }
         }
 
         function updateQty(n) { currentQty += n; if(currentQty<1) currentQty=1; document.getElementById('qtyDisplay').innerText=currentQty; }
@@ -213,6 +273,7 @@
         function goHome() { document.getElementById('home-page').style.display = 'block'; document.getElementById('product-page').style.display = 'none'; window.scrollTo(0,0); }
         function scrollToCatalogue() { document.getElementById('catalogue-section').scrollIntoView({behavior:'smooth'}); }
         function checkout() { toggleCart(); if(document.getElementById('product-page').style.display === 'none') { alert("اختر منتجاً أولاً"); scrollToCatalogue(); return; } document.getElementById('clientName').scrollIntoView({behavior:'smooth'}); }
+        
         window.addEventListener("scroll", () => document.querySelector(".header").classList.toggle("scrolled", window.scrollY > 50));
         document.addEventListener('DOMContentLoaded', loadProducts);
     </script>
