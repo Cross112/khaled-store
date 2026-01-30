@@ -2,10 +2,10 @@ const postgres = require('postgres');
 
 // === التعديل هنا ===
 // بدل ما نقرأ DATABASE_URL هنقرأ الاسم اللي Netlify عمله
-const { NETLIFY_DATABASE_URL } = process.env; 
+const {DATABASE_URL} = process.env; 
 
 // إعداد الاتصال
-const sql = postgres(NETLIFY_DATABASE_URL, {
+const sql = postgres(DATABASE_URL, {
   ssl: 'require',
 });
 
