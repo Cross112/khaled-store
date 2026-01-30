@@ -1,8 +1,7 @@
 const postgres = require('postgres');
 
-// === التعديل هنا ===
-// بدل ما نقرأ DATABASE_URL هنقرأ الاسم اللي Netlify عمله
-const {DATABASE_URL} = process.env; 
+// قراءة المتغير
+const { DATABASE_URL } = process.env;
 
 // إعداد الاتصال
 const sql = postgres(DATABASE_URL, {
@@ -10,15 +9,25 @@ const sql = postgres(DATABASE_URL, {
 });
 
 exports.handler = async (event, context) => {
-  // تفعيل CORS عشان المتصفح يقبل الداتا
+  // 1. أهم جزء: إعدادات منع الكاش (عشان يجيب الجديد دايماً)
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'GET'
+    'Access-Control-Allow-Methods': 'GET',
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate', // ممنوع التخزين
+    'Pragma': 'no-cache',
+    'Expires': '0',
   };
 
   try {
+    // طباعة رسالة في اللوج عشان نتأكد إن الاتصال بدأ
+    console.log("🚀 Starting DB Connection...");
+    
+    // جلب المنتجات
     const products = await sql`SELECT * FROM products`;
+    
+    // طباعة عدد المنتجات اللي السيرفر شايفها
+    console.log(`✅ Success! Found ${products.length} products.`);
 
     const formattedProducts = products.map(p => ({
         id: p.id,
@@ -39,15 +48,15 @@ exports.handler = async (event, context) => {
 
     return {
       statusCode: 200,
-      headers,
+      headers, // بنبعت الهيدرز اللي بتمنع الكاش
       body: JSON.stringify(formattedProducts),
     };
   } catch (error) {
-    console.error('Database Error:', error);
+    console.error('❌ Database Error:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: 'Failed to fetch products' }),
+      body: JSON.stringify({ error: 'Failed to fetch products', details: error.message }),
     };
   }
 };
